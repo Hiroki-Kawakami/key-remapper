@@ -1,0 +1,19 @@
+[[remap]]
+from = "caps_lock"
+to = "left_control"
+
+[[remap]]
+from = "japanese_pc_xfer"
+to = "japanese_kana"
+
+[[remap]]
+from = "japanese_pc_nfer"
+to = "japanese_eisuu"
+
+[[tap]]
+key = "left_command"
+alone = "japanese_eisuu"
+
+[[tap]]
+key = "right_command"
+alone = "japanese_kana"

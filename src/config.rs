@@ -13,12 +13,17 @@ pub type KeyTable = [(&'static str, u16)];
 pub struct RemapEntry {
     pub from: String,
     pub to: String,
+    /// 変換後のキーを後段のルール（`tap` など）で変換しない。
+    #[serde(rename = "final", default)]
+    pub is_final: bool,
 }
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct TapEntry {
     pub key: String,
+    #[serde(default)]
+    pub hold: Option<String>,
     pub alone: String,
     #[serde(default = "default_tap_timeout_ms")]
     pub timeout_ms: u64,
@@ -48,12 +53,22 @@ pub fn remap_pairs(entries: &[RemapEntry], table: &KeyTable) -> Result<Vec<(u16,
         .collect()
 }
 
+#[cfg(any(windows, test))]
+pub fn final_keys(entries: &[RemapEntry], table: &KeyTable) -> Result<Vec<u16>, String> {
+    entries
+        .iter()
+        .filter(|e| e.is_final)
+        .map(|e| key(table, &e.from))
+        .collect()
+}
+
 pub fn tap_rules(entries: &[TapEntry], table: &KeyTable) -> Result<Vec<Box<dyn Rule>>, String> {
     entries
         .iter()
         .map(|e| {
             let rule = Tap::new(
                 key(table, &e.key)?,
+                e.hold.as_deref().map(|h| key(table, h)).transpose()?,
                 key(table, &e.alone)?,
                 Duration::from_millis(e.timeout_ms),
             );
@@ -73,6 +88,7 @@ mod tests {
         let entries = [RemapEntry {
             from: "a".into(),
             to: "b".into(),
+            is_final: false,
         }];
         assert_eq!(remap_pairs(&entries, TABLE).unwrap(), [(1, 2)]);
     }
@@ -82,6 +98,7 @@ mod tests {
         let entries = [RemapEntry {
             from: "a".into(),
             to: "c".into(),
+            is_final: false,
         }];
         assert_eq!(
             remap_pairs(&entries, TABLE).unwrap_err(),
@@ -97,5 +114,18 @@ mod tests {
         }
         let config: Config = toml::from_str("[[tap]]\nkey = \"a\"\nalone = \"b\"\n").unwrap();
         assert_eq!(config.tap[0].timeout_ms, 1000);
+    }
+
+    #[test]
+    fn collects_final_keys() {
+        #[derive(Deserialize)]
+        struct Config {
+            remap: Vec<RemapEntry>,
+        }
+        let config: Config = toml::from_str(
+            "[[remap]]\nfrom = \"a\"\nto = \"b\"\nfinal = true\n\n[[remap]]\nfrom = \"b\"\nto = \"a\"\n",
+        )
+        .unwrap();
+        assert_eq!(final_keys(&config.remap, TABLE).unwrap(), [1]);
     }
 }

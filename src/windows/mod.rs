@@ -178,7 +178,8 @@ fn build_pipeline(config: &Config) -> Result<Pipeline, String> {
     let mut rules: Vec<Box<dyn Rule>> = Vec::new();
     let pairs = config::remap_pairs(&config.remap, keys::VIRTUAL_KEYS)?;
     if !pairs.is_empty() {
-        rules.push(Box::new(SimpleRemap::new(&pairs)));
+        let finals = config::final_keys(&config.remap, keys::VIRTUAL_KEYS)?;
+        rules.push(Box::new(SimpleRemap::new(&pairs, &finals)));
     }
     rules.extend(config::tap_rules(&config.tap, keys::VIRTUAL_KEYS)?);
     Ok(Pipeline::new(rules))

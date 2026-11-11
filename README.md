@@ -48,10 +48,14 @@ to = "left_control"
 
 [[tap]]
 key = "left_alt"
+hold = "left_control"
 alone = "japanese_eisuu"
 ```
 
-`remap` の後に `tap` が適用される。`japanese_eisuu` / `japanese_kana` は `VK_IME_OFF` / `VK_IME_ON` を送る。
+- `remap` の後に `tap` が適用される
+- `remap` に `final = true` を指定すると、置き換え後のキーは `tap` で変換されない（`tap` の単独押し判定の取り消しには使われる）。例えば `application` を `final = true` で `right_alt` にすると、`right_alt` に `tap` を設定していても、そのキーは素の右 Alt として送られる（`final` は Windows のみ。macOS ではエラーにする）
+- `hold` を指定すると、`key` を押している間は `key` の代わりに `hold` を送る。上の例では物理 Alt が Ctrl として働き、単独で押したときだけ `alone` を送る。本物の Ctrl には影響しない（`hold` は Windows のみ。macOS ではエラーにする）
+- `japanese_eisuu` / `japanese_kana` は `VK_IME_OFF` / `VK_IME_ON` を送る
 
 ## macOS
 

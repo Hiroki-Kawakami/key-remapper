@@ -1,0 +1,14 @@
+[[remap]]
+from = "application"
+to = "right_alt"
+final = true
+
+[[tap]]
+key = "left_alt"
+hold = "left_control"
+alone = "japanese_eisuu"
+
+[[tap]]
+key = "right_alt"
+hold = "right_control"
+alone = "japanese_kana"

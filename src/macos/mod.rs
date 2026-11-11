@@ -56,6 +56,17 @@ pub fn report_error(message: &str) {
 
 pub fn run(path: &Path) -> Result<(), String> {
     let config: Config = config::load(path)?;
+    if let Some(e) = config
+        .remap
+        .iter()
+        .chain(config.device.iter().flat_map(|d| &d.remap))
+        .find(|e| e.is_final)
+    {
+        return Err(format!(
+            "remap.final is not supported on macOS (from = {})",
+            e.from
+        ));
+    }
     let global = config::remap_pairs(&config.remap, keys::HID_USAGES)?;
     let devices = config
         .device
@@ -69,6 +80,12 @@ pub fn run(path: &Path) -> Result<(), String> {
             })
         })
         .collect::<Result<Vec<_>, String>>()?;
+    if let Some(e) = config.tap.iter().find(|e| e.hold.is_some()) {
+        return Err(format!(
+            "tap.hold is not supported on macOS (key = {})",
+            e.key
+        ));
+    }
     let taps = config::tap_rules(&config.tap, keys::KEYCODES)?;
 
     let applied = Arc::new(Mutex::new(BTreeSet::new()));

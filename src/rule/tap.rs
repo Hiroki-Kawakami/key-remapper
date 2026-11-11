@@ -10,15 +10,18 @@ enum State {
 
 pub struct Tap {
     key: u16,
+    hold: u16,
     alone: u16,
     timeout: Duration,
     state: State,
 }
 
 impl Tap {
-    pub fn new(key: u16, alone: u16, timeout: Duration) -> Self {
+    /// `hold` を指定すると、`key` を押している間は `key` の代わりに `hold` を送る。
+    pub fn new(key: u16, hold: Option<u16>, alone: u16, timeout: Duration) -> Self {
         Tap {
             key,
+            hold: hold.unwrap_or(key),
             alone,
             timeout,
             state: State::Idle,
@@ -33,23 +36,29 @@ impl Rule for Tap {
                 if let State::Idle = self.state {
                     self.state = State::Pending(now);
                 }
+                return vec![Event::KeyDown(self.hold)];
             }
             Event::KeyUp(key) if key == self.key => {
+                let up = Event::KeyUp(self.hold);
                 let state = std::mem::replace(&mut self.state, State::Idle);
                 if let State::Pending(pressed_at) = state
                     && now.duration_since(pressed_at) < self.timeout
                 {
-                    return vec![event, Event::KeyDown(self.alone), Event::KeyUp(self.alone)];
+                    return vec![up, Event::KeyDown(self.alone), Event::KeyUp(self.alone)];
                 }
+                return vec![up];
             }
-            Event::KeyDown(_) | Event::Pointer => {
-                if let State::Pending(_) = self.state {
-                    self.state = State::Interrupted;
-                }
-            }
-            Event::KeyUp(_) => {}
+            _ => self.observe(event, now),
         }
         vec![event]
+    }
+
+    fn observe(&mut self, event: Event, _now: Instant) {
+        if matches!(event, Event::KeyDown(_) | Event::Pointer)
+            && let State::Pending(_) = self.state
+        {
+            self.state = State::Interrupted;
+        }
     }
 }
 
@@ -62,7 +71,45 @@ mod tests {
     const OTHER: u16 = 5;
 
     fn rule() -> Tap {
-        Tap::new(KEY, ALONE, Duration::from_millis(1000))
+        Tap::new(KEY, None, ALONE, Duration::from_millis(1000))
+    }
+
+    const HOLD: u16 = 7;
+
+    fn hold_rule() -> Tap {
+        Tap::new(KEY, Some(HOLD), ALONE, Duration::from_millis(1000))
+    }
+
+    #[test]
+    fn hold_replaces_key_and_emits_alone_key() {
+        let mut rule = hold_rule();
+        let now = Instant::now();
+        assert_eq!(rule.remap(Event::KeyDown(KEY), now), [Event::KeyDown(HOLD)]);
+        assert_eq!(
+            rule.remap(Event::KeyUp(KEY), now),
+            [
+                Event::KeyUp(HOLD),
+                Event::KeyDown(ALONE),
+                Event::KeyUp(ALONE)
+            ]
+        );
+    }
+
+    #[test]
+    fn hold_replaces_key_when_interrupted() {
+        let mut rule = hold_rule();
+        let now = Instant::now();
+        rule.remap(Event::KeyDown(KEY), now);
+        rule.remap(Event::KeyDown(OTHER), now);
+        assert_eq!(rule.remap(Event::KeyUp(KEY), now), [Event::KeyUp(HOLD)]);
+    }
+
+    #[test]
+    fn hold_key_itself_is_untouched() {
+        let mut rule = hold_rule();
+        let now = Instant::now();
+        assert_eq!(rule.remap(Event::KeyDown(HOLD), now), [Event::KeyDown(HOLD)]);
+        assert_eq!(rule.remap(Event::KeyUp(HOLD), now), [Event::KeyUp(HOLD)]);
     }
 
     #[test]
